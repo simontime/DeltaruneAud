@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #ifdef _WIN32
 #include <direct.h>
@@ -8,8 +9,7 @@
 #include <sys/stat.h>
 #endif
 
-#define u8 unsigned char
-#define ERROR "Error: Invalid input!"
+#define IOERR "Error: Failed to open \"%s\" for %s!\n"
 
 typedef struct hdr {
 	int form;
@@ -25,9 +25,14 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	FILE *input = fopen(argv[1], "rb");
+	FILE *input;
 
-	char *dirName = strtok(argv[1], ".");
+	if (!(input = fopen(argv[1], "rb"))) {
+		fprintf(stderr, IOERR, argv[1], "reading");
+		return 1;
+	}
+
+	uint8_t *dirName = strtok(argv[1], ".");
 
 #ifdef _WIN32
 	_mkdir(dirName);
@@ -37,33 +42,37 @@ int main(int argc, char **argv) {
 
 	hdr head;
 
-	fread(&head, sizeof(hdr), sizeof(u8), input);
+	fread(&head, sizeof(hdr), 1, input);
 
 	if (head.form != 'MROF' || head.audo != 'ODUA') {
-		fputs(ERROR, stderr);
+		fputs("Error: Invalid input!", stderr);
 		return 1;
 	}
 
 	int *offsets = calloc(head.count, sizeof(int));
 
-	for (int i = 0; i < head.count; i++)
-		fread(&offsets[i], sizeof(int), sizeof(u8), input);
+	fread(offsets, sizeof(int), head.count, input);
 
 	for (int i = 0, size; i < head.count; i++) {
 		fseek(input, offsets[i], 0);
-		fread(&size, sizeof(int), sizeof(u8), input);
+		fread(&size, sizeof(int), 1, input);
 
-		u8 *buf = calloc(size, sizeof(u8)),
-			*name = calloc(0x100, sizeof(u8));
+		uint8_t *buf  = malloc(size), 
+			*name = malloc(0x100);
 
 		sprintf(name, "%s/0x%x-0x%x.wav", dirName, offsets[i], offsets[i] + size);
 
 		printf("Ripping WAV at 0x%x-0x%x...\n", offsets[i], offsets[i] + size);
 
-		FILE *out = fopen(name, "wb");
+		FILE *out;
 
-		fread(buf, size, sizeof(u8), input);
-		fwrite(buf, size, sizeof(u8), out);
+		if (!(out = fopen(name, "wb"))) {
+			fprintf(stderr, IOERR, name, "writing");
+			return 1;
+		}
+
+		fread(buf, size, 1, input);
+		fwrite(buf, size, 1, out);
 
 		fclose(out);
 
