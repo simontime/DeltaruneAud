@@ -32,7 +32,8 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	uint8_t *dirName = strtok(argv[1], ".");
+	uint8_t *dirName = strtok(argv[1], "."),
+		*name	 = malloc(0x100);
 
 #ifdef _WIN32
 	_mkdir(dirName);
@@ -49,7 +50,7 @@ int main(int argc, char **argv) {
 		return 1;
 	}
 
-	int *offsets = calloc(head.count, sizeof(int));
+	int *offsets = malloc(head.count * sizeof(int));
 
 	fread(offsets, sizeof(int), head.count, input);
 
@@ -57,8 +58,7 @@ int main(int argc, char **argv) {
 		fseek(input, offsets[i], 0);
 		fread(&size, sizeof(int), 1, input);
 
-		uint8_t *buf  = malloc(size), 
-			*name = malloc(0x100);
+		uint8_t *buf = malloc(size);
 
 		sprintf(name, "%s/0x%x-0x%x.wav", dirName, offsets[i], offsets[i] + size);
 
@@ -73,13 +73,11 @@ int main(int argc, char **argv) {
 
 		fread(buf, size, 1, input);
 		fwrite(buf, size, 1, out);
-
 		fclose(out);
-
-		free(name);
 		free(buf);
 	}
 
+	free(name);
 	fclose(input);
 
 	puts("\nDone!");
